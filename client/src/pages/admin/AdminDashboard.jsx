@@ -6,6 +6,8 @@ import InventoryManagement from "../../components/admin/InventoryManagement";
 import InventoryAlerts from "../../components/inventory/InventoryAlerts";
 import ProcurementManagement from "../../components/admin/ProcurementManagement";
 import WasteAnalytics from "../../components/inventory/WasteAnalytics";
+import RecipeManagement from "../../components/admin/RecipeManagement";
+
 
 function AdminDashboard() {
   return (
@@ -27,6 +29,12 @@ function AdminDashboard() {
       ====================================== */}
 
       <MenuManagement />
+
+      {/* =====================================
+          RECIPE MANAGEMENT
+      ====================================== */}
+
+      <RecipeManagement />
 
       {/* =====================================
           STAFF MANAGEMENT

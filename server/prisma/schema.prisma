@@ -67,6 +67,7 @@ enum InventoryTransactionType {
   STOCK_IN
   WASTE
   ADJUSTMENT
+  CONSUMPTION
 }
 
 // Procurement / reorder lifecycle
@@ -178,7 +179,9 @@ model MenuItem {
   category   MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
 
   // Dish can appear in many orders
-  orderItems OrderItem[]
+  orderItems        OrderItem[]
+  // Ingredients required to prepare this dish
+  recipeIngredients RecipeIngredient[]
 }
 
 // ========================================
@@ -315,7 +318,9 @@ model InventoryItem {
   transactions InventoryTransaction[]
 
   // Procurement/reorder history
-  reorderRequests ReorderRequest[]
+  reorderRequests   ReorderRequest[]
+  // Recipes that use this inventory item
+  recipeIngredients RecipeIngredient[]
 }
 
 // ========================================
@@ -427,4 +432,20 @@ model ReorderRequest {
   @@index([inventoryItemId])
   @@index([status])
   @@index([createdById])
+}
+
+model RecipeIngredient {
+  id Int @id @default(autoincrement())
+
+  quantity Decimal @db.Decimal(12, 3)
+
+  menuItemId Int
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  inventoryItemId Int
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@unique([menuItemId, inventoryItemId])
+  @@index([menuItemId])
+  @@index([inventoryItemId])
 }

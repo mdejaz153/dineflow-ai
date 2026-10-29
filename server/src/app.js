@@ -50,6 +50,10 @@ const analyticsRoutes = require(
   "./routes/analyticsRoutes"
 );
 
+// Recipe management routes
+const recipeRoutes = require(
+  "./routes/recipeRoutes"
+);
 
 // ========================================
 // EXPRESS APP
@@ -116,6 +120,11 @@ app.use(
   analyticsRoutes
 );
 
+// Menu recipes / ingredient mapping
+app.use(
+  "/api/recipes",
+  recipeRoutes
+);
 
 // ========================================
 // HEALTH CHECK
