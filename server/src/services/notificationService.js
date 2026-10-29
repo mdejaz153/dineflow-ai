@@ -63,10 +63,10 @@ const sendEmail = async ({
 };
 
 // ========================================
-// FORMAT RESERVATION DATE/TIME
+// FORMAT DATE / TIME
 // ========================================
 
-const formatReservationDateTime = (
+const formatDateTime = (
   value
 ) => {
   return new Date(value).toLocaleString(
@@ -102,12 +102,11 @@ const sendReservationConfirmationEmail =
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
           <h2>DineFlow Reservation Confirmed</h2>
 
-          <p>
-            Hi ${customer.name},
-          </p>
+          <p>Hi ${customer.name},</p>
 
           <p>
-            Your table reservation has been confirmed successfully.
+            Your table reservation has been
+            confirmed successfully.
           </p>
 
           <h3>Reservation Details</h3>
@@ -129,14 +128,14 @@ const sendReservationConfirmationEmail =
 
           <p>
             <strong>Start:</strong>
-            ${formatReservationDateTime(
+            ${formatDateTime(
               reservation.startTime
             )}
           </p>
 
           <p>
             <strong>End:</strong>
-            ${formatReservationDateTime(
+            ${formatDateTime(
               reservation.endTime
             )}
           </p>
@@ -194,12 +193,11 @@ const sendReservationCancellationEmail =
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
           <h2>Reservation Cancelled</h2>
 
-          <p>
-            Hi ${customer.name},
-          </p>
+          <p>Hi ${customer.name},</p>
 
           <p>
-            Your DineFlow reservation has been cancelled successfully.
+            Your DineFlow reservation has been
+            cancelled successfully.
           </p>
 
           <h3>Reservation Details</h3>
@@ -221,7 +219,7 @@ const sendReservationCancellationEmail =
 
           <p>
             <strong>Scheduled Time:</strong>
-            ${formatReservationDateTime(
+            ${formatDateTime(
               reservation.startTime
             )}
           </p>
@@ -234,7 +232,8 @@ const sendReservationCancellationEmail =
           <hr />
 
           <p>
-            You can create another reservation anytime through DineFlow.
+            You can create another reservation
+            anytime through DineFlow.
           </p>
 
           <small>
@@ -245,8 +244,139 @@ const sendReservationCancellationEmail =
     });
   };
 
+// ========================================
+// PROCUREMENT REVIEW EMAIL
+//
+// Sent to Inventory Staff after Manager
+// approves or rejects a reorder request.
+// ========================================
+
+const sendReorderReviewEmail =
+  async ({
+    recipient,
+    reorderRequest,
+  }) => {
+    if (!recipient?.email) {
+      return null;
+    }
+
+    const approved =
+      reorderRequest.status ===
+      "APPROVED";
+
+    const statusText =
+      approved
+        ? "APPROVED"
+        : "REJECTED";
+
+    const statusMessage =
+      approved
+        ? "Your procurement request has been approved by the Manager and is now awaiting delivery."
+        : "Your procurement request has been rejected by the Manager.";
+
+    return sendEmail({
+      to: recipient.email,
+
+      subject:
+        `DineFlow Reorder #${reorderRequest.id} ${statusText}`,
+
+      html: `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6;">
+          <h2>
+            Procurement Request ${statusText}
+          </h2>
+
+          <p>
+            Hi ${recipient.name},
+          </p>
+
+          <p>
+            ${statusMessage}
+          </p>
+
+          <h3>Request Details</h3>
+
+          <p>
+            <strong>Request ID:</strong>
+            #${reorderRequest.id}
+          </p>
+
+          <p>
+            <strong>Ingredient:</strong>
+            ${reorderRequest.inventoryItem.name}
+          </p>
+
+          <p>
+            <strong>Quantity:</strong>
+            ${reorderRequest.quantity}
+            ${reorderRequest.inventoryItem.unit}
+          </p>
+
+          ${
+            reorderRequest.note
+              ? `
+                <p>
+                  <strong>Request Note:</strong>
+                  ${reorderRequest.note}
+                </p>
+              `
+              : ""
+          }
+
+          <p>
+            <strong>Reviewed By:</strong>
+            ${
+              reorderRequest.reviewedBy
+                ?.name || "Manager"
+            }
+          </p>
+
+          ${
+            reorderRequest.reviewedAt
+              ? `
+                <p>
+                  <strong>Reviewed At:</strong>
+                  ${formatDateTime(
+                    reorderRequest.reviewedAt
+                  )}
+                </p>
+              `
+              : ""
+          }
+
+          <p>
+            <strong>Status:</strong>
+            ${statusText}
+          </p>
+
+          ${
+            approved
+              ? `
+                <p>
+                  Once the supplier delivery
+                  arrives, mark the request as
+                  received in the Inventory
+                  Dashboard.
+                </p>
+              `
+              : ""
+          }
+
+          <hr />
+
+          <small>
+            DineFlow Procurement System
+          </small>
+        </div>
+      `,
+    });
+  };
+
 module.exports = {
   sendEmail,
+
   sendReservationConfirmationEmail,
   sendReservationCancellationEmail,
+
+  sendReorderReviewEmail,
 };

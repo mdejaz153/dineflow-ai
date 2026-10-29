@@ -1,5 +1,11 @@
 const prisma = require("../config/prisma");
 
+const {
+  sendReorderReviewEmail,
+} = require(
+  "../services/notificationService"
+);
+
 // ========================================
 // COMMON INCLUDE
 //
@@ -11,12 +17,13 @@ const reorderInclude = {
   inventoryItem: true,
 
   createdBy: {
-    select: {
-      id: true,
-      name: true,
-      role: true,
-    },
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    role: true,
   },
+},
 
   reviewedBy: {
     select: {
@@ -346,7 +353,29 @@ const reviewReorderRequest = async (
 
         include: reorderInclude,
       });
-
+    // ========================================
+    // SEND PROCUREMENT REVIEW EMAIL
+    //
+    // Procurement database update has already
+    // succeeded.
+    //
+    // External email failure must never undo
+    // Manager approval/rejection.
+    // ========================================
+    
+    try {
+      await sendReorderReviewEmail({
+        recipient:
+          reorderRequest.createdBy,
+    
+        reorderRequest,
+      });
+    } catch (emailError) {
+      console.error(
+        "Procurement review email failed:",
+        emailError.message
+      );
+    }
     return res.status(200).json({
       success: true,
       message: `Reorder request ${status.toLowerCase()} successfully`,
