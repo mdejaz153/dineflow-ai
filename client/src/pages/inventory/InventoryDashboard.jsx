@@ -379,7 +379,7 @@ function InventoryDashboard() {
           DEMAND FORECAST
       ====================================== */}
       
-      <DemandForecast />
+      <DemandForecast allowReorder />
 
      {/* =====================================
           CONSUMPTION ANALYTICS

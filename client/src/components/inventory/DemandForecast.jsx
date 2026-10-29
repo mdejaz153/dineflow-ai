@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 
-function DemandForecast() {
+function DemandForecast({
+  allowReorder = false,
+}) {
   // ========================================
   // STATE
   // ========================================
@@ -23,6 +25,13 @@ function DemandForecast() {
 
   const [error, setError] =
     useState("");
+
+  // Stores ID of item whose reorder request
+  // is currently being created.
+  const [
+    creatingReorderFor,
+    setCreatingReorderFor,
+  ] = useState(null);
 
   // ========================================
   // FETCH FORECAST
@@ -69,8 +78,9 @@ function DemandForecast() {
   // ========================================
   // AUTO-SYNC
   //
-  // New kitchen consumption and inventory
-  // changes automatically update forecast.
+  // Consumption, stock deliveries and other
+  // inventory changes automatically cause
+  // forecast values to refresh.
   // ========================================
 
   useEffect(() => {
@@ -86,10 +96,71 @@ function DemandForecast() {
   }, []);
 
   // ========================================
+  // CREATE FORECAST-BASED REORDER
+  //
+  // Uses the quantity calculated by the
+  // forecasting engine.
+  //
+  // Existing backend duplicate protection
+  // prevents multiple active requests for
+  // the same inventory item.
+  // ========================================
+
+  const handleCreateForecastReorder =
+    async (forecast) => {
+      if (
+        !forecast.recommendedReorder ||
+        forecast.recommendedReorder <= 0
+      ) {
+        alert(
+          "No reorder is currently recommended for this item"
+        );
+
+        return;
+      }
+
+      try {
+        setCreatingReorderFor(
+          forecast.inventoryItemId
+        );
+
+        const response = await api.post(
+          "/reorders",
+          {
+            inventoryItemId:
+              forecast.inventoryItemId,
+
+            quantity:
+              forecast.recommendedReorder,
+
+            note:
+              `7-day demand forecast reorder — ${forecast.riskLevel} risk`,
+          }
+        );
+
+        alert(response.data.message);
+      } catch (error) {
+        console.error(
+          "Forecast reorder error:",
+          error
+        );
+
+        alert(
+          error.response?.data?.message ||
+            "Failed to create forecast reorder request"
+        );
+      } finally {
+        setCreatingReorderFor(null);
+      }
+    };
+
+  // ========================================
   // RISK DISPLAY
   // ========================================
 
-  const getRiskLabel = (riskLevel) => {
+  const getRiskLabel = (
+    riskLevel
+  ) => {
     switch (riskLevel) {
       case "HIGH":
         return "🔴 HIGH";
@@ -105,7 +176,13 @@ function DemandForecast() {
     }
   };
 
-  const getInsightIcon = (level) => {
+  // ========================================
+  // INSIGHT DISPLAY
+  // ========================================
+
+  const getInsightIcon = (
+    level
+  ) => {
     switch (level) {
       case "HIGH":
         return "🔴";
@@ -134,8 +211,8 @@ function DemandForecast() {
       </h2>
 
       <p>
-        Consumption-based inventory planning
-        for upcoming demand.
+        Consumption-based inventory
+        planning for upcoming demand.
       </p>
 
       {loading && (
@@ -157,7 +234,9 @@ function DemandForecast() {
                 METHODOLOGY
             ================================= */}
 
-            <h3>Forecast Method</h3>
+            <h3>
+              Forecast Method
+            </h3>
 
             <p>
               Analysis Window:{" "}
@@ -197,7 +276,9 @@ function DemandForecast() {
                 SUMMARY
             ================================= */}
 
-            <h3>Forecast Summary</h3>
+            <h3>
+              Forecast Summary
+            </h3>
 
             <p>
               Total Items:{" "}
@@ -244,7 +325,7 @@ function DemandForecast() {
             </p>
 
             {/* =================================
-                FORECAST INSIGHT
+                OVERALL INSIGHT
             ================================= */}
 
             {insight && (
@@ -284,25 +365,45 @@ function DemandForecast() {
             >
               <thead>
                 <tr>
-                  <th>Ingredient</th>
-                  <th>Current</th>
-                  <th>Avg / Day</th>
+                  <th>
+                    Ingredient
+                  </th>
+
+                  <th>
+                    Current
+                  </th>
+
+                  <th>
+                    Avg / Day
+                  </th>
+
                   <th>
                     7-Day Demand
                   </th>
+
                   <th>
                     Projected Stock
                   </th>
+
                   <th>
                     Safety Stock
                   </th>
+
                   <th>
                     Expected Shortage
                   </th>
+
                   <th>
                     Recommended Reorder
                   </th>
-                  <th>Risk</th>
+
+                  <th>
+                    Risk
+                  </th>
+
+                  <th>
+                    Action
+                  </th>
                 </tr>
               </thead>
 
@@ -315,7 +416,9 @@ function DemandForecast() {
                       }
                     >
                       <td>
-                        {forecast.name}
+                        {
+                          forecast.name
+                        }
                       </td>
 
                       <td>
@@ -384,6 +487,31 @@ function DemandForecast() {
                           )}
                         </strong>
                       </td>
+
+                      <td>
+                        {allowReorder &&
+                        forecast.recommendedReorder > 0 ? (
+                          <button
+                            type="button"
+                            disabled={
+                              creatingReorderFor ===
+                              forecast.inventoryItemId
+                            }
+                            onClick={() =>
+                              handleCreateForecastReorder(
+                                forecast
+                              )
+                            }
+                          >
+                            {creatingReorderFor ===
+                            forecast.inventoryItemId
+                              ? "Creating..."
+                              : "Create Forecast Reorder"}
+                          </button>
+                        ) : (
+                          "-"
+                        )}
+                      </td>
                     </tr>
                   )
                 )}
@@ -396,8 +524,8 @@ function DemandForecast() {
               <small>
                 Forecasts are based on
                 available recent consumption
-                history. Accuracy improves as
-                more operational data is
+                history. Accuracy improves
+                as more operational data is
                 collected.
               </small>
             </p>
