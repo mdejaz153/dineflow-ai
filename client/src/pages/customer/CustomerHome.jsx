@@ -8,6 +8,9 @@ import MenuSection from "../../components/customer/MenuSection";
 import CartSection from "../../components/customer/CartSection";
 import OrderTracking from "../../components/customer/OrderTracking";
 import ReservationSection from "../../components/customer/ReservationSection";
+import RestaurantLocation from "../../components/customer/RestaurantLocation";
+
+
 
 function CustomerHome() {
   // ========================================
@@ -352,6 +355,13 @@ function CustomerHome() {
       ====================================== */}
 
       <ReservationSection />
+
+      {/* =====================================
+          RESTAURANT LOCATION
+      ====================================== */}
+      
+      <RestaurantLocation />
+      
     </div>
   );
 }
