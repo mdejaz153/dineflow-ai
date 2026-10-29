@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import api from "../../services/api";
-
 import LogoutButton from "../../components/LogoutButton";
 import InventoryAlerts from "../../components/inventory/InventoryAlerts";
 import ReorderManagement from "../../components/inventory/ReorderManagement";
+import WasteAnalytics from "../../components/inventory/WasteAnalytics";
+
 
 function InventoryDashboard() {
   // ========================================
@@ -374,7 +375,11 @@ function InventoryDashboard() {
       {/* =====================================
           BASIC INVENTORY SUMMARY
       ====================================== */}
-
+      {/* =====================================
+          WASTE ANALYTICS
+      ====================================== */}
+      
+      <WasteAnalytics />
       <hr />
 
       <h2>Inventory Summary</h2>

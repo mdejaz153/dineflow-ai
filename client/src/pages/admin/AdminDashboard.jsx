@@ -5,7 +5,7 @@ import TableManagement from "../../components/admin/TableManagement";
 import InventoryManagement from "../../components/admin/InventoryManagement";
 import InventoryAlerts from "../../components/inventory/InventoryAlerts";
 import ProcurementManagement from "../../components/admin/ProcurementManagement";
-
+import WasteAnalytics from "../../components/inventory/WasteAnalytics";
 
 function AdminDashboard() {
   return (
@@ -51,6 +51,13 @@ function AdminDashboard() {
       ====================================== */}
       
       <ProcurementManagement />
+      
+      {/* =====================================
+          WASTE ANALYTICS
+      ====================================== */}
+      
+      <WasteAnalytics />
+
       
       {/* =====================================
           INVENTORY MANAGEMENT

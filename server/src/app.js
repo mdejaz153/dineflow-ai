@@ -45,6 +45,11 @@ const reorderRoutes = require(
   "./routes/reorderRoutes"
 );
 
+// Analytics routes
+const analyticsRoutes = require(
+  "./routes/analyticsRoutes"
+);
+
 
 // ========================================
 // EXPRESS APP
@@ -104,6 +109,13 @@ app.use(
   "/api/reorders",
   reorderRoutes
 );
+
+// Analytics
+app.use(
+  "/api/analytics",
+  analyticsRoutes
+);
+
 
 // ========================================
 // HEALTH CHECK
