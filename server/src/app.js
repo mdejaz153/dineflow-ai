@@ -60,6 +60,11 @@ const forecastRoutes = require(
   "./routes/forecastRoutes"
 );
 
+// External nutrition API integration
+const nutritionRoutes = require(
+  "./routes/nutritionRoutes"
+);
+
 
 // ========================================
 // EXPRESS APP
@@ -138,6 +143,11 @@ app.use(
   forecastRoutes
 );
 
+// USDA FoodData Central nutrition
+app.use(
+  "/api/nutrition",
+  nutritionRoutes
+);
 
 // ========================================
 // HEALTH CHECK
