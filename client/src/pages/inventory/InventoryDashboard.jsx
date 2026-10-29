@@ -4,6 +4,7 @@ import LogoutButton from "../../components/LogoutButton";
 import InventoryAlerts from "../../components/inventory/InventoryAlerts";
 import ReorderManagement from "../../components/inventory/ReorderManagement";
 import WasteAnalytics from "../../components/inventory/WasteAnalytics";
+import ConsumptionAnalytics from "../../components/inventory/ConsumptionAnalytics";
 
 
 function InventoryDashboard() {
@@ -375,6 +376,13 @@ function InventoryDashboard() {
       {/* =====================================
           BASIC INVENTORY SUMMARY
       ====================================== */}
+
+     {/* =====================================
+          CONSUMPTION ANALYTICS
+      ====================================== */}
+
+      <ConsumptionAnalytics />
+
       {/* =====================================
           WASTE ANALYTICS
       ====================================== */}

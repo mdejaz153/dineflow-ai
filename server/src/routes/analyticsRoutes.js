@@ -10,6 +10,7 @@ const {
 
 const {
   getWasteAnalytics,
+  getConsumptionAnalytics,
 } = require(
   "../controllers/analyticsController"
 );
@@ -37,6 +38,22 @@ router.get(
     "INVENTORY_STAFF"
   ),
   getWasteAnalytics
+);
+
+// ========================================
+// CONSUMPTION / DEMAND ANALYTICS
+//
+// Manager + Inventory Staff
+// ========================================
+
+router.get(
+  "/consumption",
+  protect,
+  authorizeRoles(
+    "MANAGER",
+    "INVENTORY_STAFF"
+  ),
+  getConsumptionAnalytics
 );
 
 module.exports = router;
