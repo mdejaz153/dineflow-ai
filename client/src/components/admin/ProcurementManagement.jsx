@@ -55,9 +55,24 @@ function ProcurementManagement() {
     }
   };
 
-  useEffect(() => {
-    fetchReorders();
-  }, []);
+ // ========================================
+ // AUTO-SYNC PROCUREMENT REQUESTS
+ //
+ // Keeps Manager dashboard updated when
+ // Inventory Staff creates/receives requests.
+ // ========================================
+ 
+ useEffect(() => {
+   fetchReorders();
+ 
+   const interval = setInterval(() => {
+     fetchReorders();
+   }, 5000);
+ 
+   return () => {
+     clearInterval(interval);
+   };
+ }, []);
 
   // ========================================
   // RECALCULATE SUMMARY

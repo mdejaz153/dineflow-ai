@@ -49,11 +49,22 @@ function InventoryAlerts() {
   };
 
   // ========================================
-  // LOAD ALERTS WHEN COMPONENT OPENS
+  // AUTO-SYNC SMART INVENTORY ALERTS
+  //
+  // Stock changes can happen from procurement,
+  // waste, adjustments or deliveries.
   // ========================================
-
+  
   useEffect(() => {
     fetchAlerts();
+  
+    const interval = setInterval(() => {
+      fetchAlerts();
+    }, 5000);
+  
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // ========================================

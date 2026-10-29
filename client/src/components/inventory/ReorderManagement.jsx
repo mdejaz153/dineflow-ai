@@ -78,8 +78,26 @@ function ReorderManagement() {
     }
   };
 
+  // ========================================
+  // AUTO-SYNC PROCUREMENT DATA
+  //
+  // Refreshes every 5 seconds so Manager
+  // approvals appear without page refresh.
+  // ========================================
+  
   useEffect(() => {
+    // Initial load
     fetchReorderData();
+  
+    // Periodically sync with backend
+    const interval = setInterval(() => {
+      fetchReorderData();
+    }, 5000);
+  
+    // Prevent memory leak when component closes
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // ========================================

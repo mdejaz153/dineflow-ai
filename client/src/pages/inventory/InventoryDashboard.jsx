@@ -60,8 +60,23 @@ function InventoryDashboard() {
     }
   };
 
+  // ========================================
+  // AUTO-SYNC CURRENT INVENTORY
+  //
+  // Keeps stock quantities updated when stock
+  // changes through procurement or other users.
+  // ========================================
+  
   useEffect(() => {
     fetchInventory();
+  
+    const interval = setInterval(() => {
+      fetchInventory();
+    }, 5000);
+  
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // ========================================
