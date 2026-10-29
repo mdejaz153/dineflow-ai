@@ -55,6 +55,12 @@ const recipeRoutes = require(
   "./routes/recipeRoutes"
 );
 
+// Demand forecasting routes
+const forecastRoutes = require(
+  "./routes/forecastRoutes"
+);
+
+
 // ========================================
 // EXPRESS APP
 // ========================================
@@ -125,6 +131,13 @@ app.use(
   "/api/recipes",
   recipeRoutes
 );
+
+// Predictive demand forecasting
+app.use(
+  "/api/forecast",
+  forecastRoutes
+);
+
 
 // ========================================
 // HEALTH CHECK

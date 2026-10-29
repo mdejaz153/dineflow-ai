@@ -5,6 +5,8 @@ import InventoryAlerts from "../../components/inventory/InventoryAlerts";
 import ReorderManagement from "../../components/inventory/ReorderManagement";
 import WasteAnalytics from "../../components/inventory/WasteAnalytics";
 import ConsumptionAnalytics from "../../components/inventory/ConsumptionAnalytics";
+import DemandForecast from "../../components/inventory/DemandForecast";
+
 
 
 function InventoryDashboard() {
@@ -374,8 +376,10 @@ function InventoryDashboard() {
       <ReorderManagement />
 
       {/* =====================================
-          BASIC INVENTORY SUMMARY
+          DEMAND FORECAST
       ====================================== */}
+      
+      <DemandForecast />
 
      {/* =====================================
           CONSUMPTION ANALYTICS
