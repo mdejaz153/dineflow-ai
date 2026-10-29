@@ -65,6 +65,11 @@ const nutritionRoutes = require(
   "./routes/nutritionRoutes"
 );
 
+// Notification routes
+const notificationRoutes = require(
+  "./routes/notificationRoutes"
+);
+
 
 // ========================================
 // EXPRESS APP
@@ -147,6 +152,12 @@ app.use(
 app.use(
   "/api/nutrition",
   nutritionRoutes
+);
+
+// Notifications
+app.use(
+  "/api/notifications",
+  notificationRoutes
 );
 
 // ========================================

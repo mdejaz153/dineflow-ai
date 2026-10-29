@@ -1,15 +1,16 @@
 const prisma = require("../config/prisma");
 
+const {
+  sendReservationConfirmationEmail,
+  sendReservationCancellationEmail,
+} = require("../services/notificationService");
+
 // Reservation duration for V1.
 // Customer selects start time; system reserves table for 90 minutes.
 const RESERVATION_DURATION_MINUTES = 90;
 
 // ========================================
 // GET AVAILABLE TABLES
-// Finds tables that:
-// 1. Are enabled
-// 2. Have enough seats
-// 3. Have no overlapping reservation
 // ========================================
 
 const getAvailableTables = async (req, res) => {
@@ -24,23 +25,26 @@ const getAvailableTables = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Valid guestCount and startTime are required",
+        message:
+          "Valid guestCount and startTime are required",
       });
     }
 
     if (startTime <= new Date()) {
       return res.status(400).json({
         success: false,
-        message: "Reservation time must be in the future",
+        message:
+          "Reservation time must be in the future",
       });
     }
 
     const endTime = new Date(
       startTime.getTime() +
-        RESERVATION_DURATION_MINUTES * 60 * 1000
+        RESERVATION_DURATION_MINUTES *
+          60 *
+          1000
     );
 
-    // Fetch tables with enough capacity that are not disabled
     const candidateTables =
       await prisma.restaurantTable.findMany({
         where: {
@@ -63,7 +67,6 @@ const getAvailableTables = async (req, res) => {
         ],
       });
 
-    // Check reservation overlap for every candidate table
     const availableTables = [];
 
     for (const table of candidateTables) {
@@ -73,12 +76,12 @@ const getAvailableTables = async (req, res) => {
             tableId: table.id,
 
             status: {
-              in: ["CONFIRMED", "SEATED"],
+              in: [
+                "CONFIRMED",
+                "SEATED",
+              ],
             },
 
-            // Existing booking overlaps if:
-            // existing.start < requested.end
-            // AND existing.end > requested.start
             startTime: {
               lt: endTime,
             },
@@ -102,7 +105,10 @@ const getAvailableTables = async (req, res) => {
       tables: availableTables,
     });
   } catch (error) {
-    console.error("Get available tables error:", error);
+    console.error(
+      "Get available tables error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
@@ -113,7 +119,13 @@ const getAvailableTables = async (req, res) => {
 
 // ========================================
 // CREATE RESERVATION
-// Customer books one table for 90 minutes
+//
+// Customer books one table for 90 minutes.
+// After successful DB creation, DineFlow
+// attempts to send confirmation email.
+//
+// IMPORTANT:
+// Email failure never rolls back reservation.
 // ========================================
 
 const createReservation = async (req, res) => {
@@ -127,9 +139,14 @@ const createReservation = async (req, res) => {
       specialRequest,
     } = req.body;
 
-    const numericTableId = Number(tableId);
-    const numericGuestCount = Number(guestCount);
-    const reservationStart = new Date(startTime);
+    const numericTableId =
+      Number(tableId);
+
+    const numericGuestCount =
+      Number(guestCount);
+
+    const reservationStart =
+      new Date(startTime);
 
     // ========================================
     // BASIC VALIDATION
@@ -137,9 +154,13 @@ const createReservation = async (req, res) => {
 
     if (
       !Number.isInteger(numericTableId) ||
-      !Number.isInteger(numericGuestCount) ||
+      !Number.isInteger(
+        numericGuestCount
+      ) ||
       numericGuestCount <= 0 ||
-      Number.isNaN(reservationStart.getTime())
+      Number.isNaN(
+        reservationStart.getTime()
+      )
     ) {
       return res.status(400).json({
         success: false,
@@ -148,46 +169,61 @@ const createReservation = async (req, res) => {
       });
     }
 
-    if (reservationStart <= new Date()) {
+    if (
+      reservationStart <= new Date()
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Reservation time must be in the future",
+        message:
+          "Reservation time must be in the future",
       });
     }
 
-    const reservationEnd = new Date(
-      reservationStart.getTime() +
-        RESERVATION_DURATION_MINUTES * 60 * 1000
-    );
+    const reservationEnd =
+      new Date(
+        reservationStart.getTime() +
+          RESERVATION_DURATION_MINUTES *
+            60 *
+            1000
+      );
 
     // ========================================
     // CHECK TABLE
     // ========================================
 
-    const table = await prisma.restaurantTable.findUnique({
-      where: {
-        id: numericTableId,
-      },
-    });
+    const table =
+      await prisma.restaurantTable.findUnique({
+        where: {
+          id: numericTableId,
+        },
+      });
 
     if (!table) {
       return res.status(404).json({
         success: false,
-        message: "Restaurant table not found",
+        message:
+          "Restaurant table not found",
       });
     }
 
-    if (table.status === "DISABLED") {
+    if (
+      table.status === "DISABLED"
+    ) {
       return res.status(400).json({
         success: false,
-        message: "This table is currently disabled",
+        message:
+          "This table is currently disabled",
       });
     }
 
-    if (numericGuestCount > table.capacity) {
+    if (
+      numericGuestCount >
+      table.capacity
+    ) {
       return res.status(400).json({
         success: false,
-        message: `Table ${table.number} supports maximum ${table.capacity} guests`,
+        message:
+          `Table ${table.number} supports maximum ${table.capacity} guests`,
       });
     }
 
@@ -201,7 +237,10 @@ const createReservation = async (req, res) => {
           tableId: numericTableId,
 
           status: {
-            in: ["CONFIRMED", "SEATED"],
+            in: [
+              "CONFIRMED",
+              "SEATED",
+            ],
           },
 
           startTime: {
@@ -226,68 +265,108 @@ const createReservation = async (req, res) => {
     // CREATE RESERVATION
     // ========================================
 
-    const reservation = await prisma.reservation.create({
-      data: {
-        customerId,
-        tableId: numericTableId,
-        guestCount: numericGuestCount,
-        startTime: reservationStart,
-        endTime: reservationEnd,
-        specialRequest:
-          specialRequest?.trim() || null,
-      },
+    const reservation =
+      await prisma.reservation.create({
+        data: {
+          customerId,
+          tableId:
+            numericTableId,
 
-      include: {
-        table: true,
+          guestCount:
+            numericGuestCount,
 
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            phone: true,
+          startTime:
+            reservationStart,
+
+          endTime:
+            reservationEnd,
+
+          specialRequest:
+            specialRequest?.trim() ||
+            null,
+        },
+
+        include: {
+          table: true,
+
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              phone: true,
+            },
           },
         },
-      },
-    });
+      });
+
+    // ========================================
+    // SEND CONFIRMATION EMAIL
+    //
+    // Reservation has already been created.
+    // Email errors are logged separately.
+    // ========================================
+
+    try {
+      await sendReservationConfirmationEmail({
+        customer:
+          reservation.customer,
+
+        reservation,
+      });
+    } catch (emailError) {
+      console.error(
+        "Reservation confirmation email failed:",
+        emailError.message
+      );
+    }
 
     return res.status(201).json({
       success: true,
-      message: "Table reserved successfully",
+      message:
+        "Table reserved successfully",
       reservation,
     });
   } catch (error) {
-    console.error("Create reservation error:", error);
+    console.error(
+      "Create reservation error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Internal server error",
     });
   }
 };
 
 // ========================================
 // GET MY RESERVATIONS
-// Customer sees only their own bookings
 // ========================================
 
-const getMyReservations = async (req, res) => {
+const getMyReservations = async (
+  req,
+  res
+) => {
   try {
-    const customerId = req.user.id;
+    const customerId =
+      req.user.id;
 
-    const reservations = await prisma.reservation.findMany({
-      where: {
-        customerId,
-      },
+    const reservations =
+      await prisma.reservation.findMany({
+        where: {
+          customerId,
+        },
 
-      include: {
-        table: true,
-      },
+        include: {
+          table: true,
+        },
 
-      orderBy: {
-        startTime: "desc",
-      },
-    });
+        orderBy: {
+          startTime: "desc",
+        },
+      });
 
     return res.status(200).json({
       success: true,
@@ -295,53 +374,94 @@ const getMyReservations = async (req, res) => {
       reservations,
     });
   } catch (error) {
-    console.error("Get my reservations error:", error);
+    console.error(
+      "Get my reservations error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Internal server error",
     });
   }
 };
 
 // ========================================
 // CANCEL MY RESERVATION
-// Customer can cancel their own future booking
+//
+// Customer can cancel their own confirmed
+// reservation.
+//
+// After cancellation, DineFlow attempts to
+// send cancellation email.
+//
+// Email failure does not undo cancellation.
 // ========================================
 
-const cancelMyReservation = async (req, res) => {
+const cancelMyReservation = async (
+  req,
+  res
+) => {
   try {
-    const customerId = req.user.id;
-    const reservationId = Number(req.params.id);
+    const customerId =
+      req.user.id;
 
-    if (!Number.isInteger(reservationId)) {
+    const reservationId =
+      Number(req.params.id);
+
+    if (
+      !Number.isInteger(
+        reservationId
+      )
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid reservation ID",
+        message:
+          "Invalid reservation ID",
       });
     }
 
-    const reservation = await prisma.reservation.findFirst({
-      where: {
-        id: reservationId,
-        customerId,
-      },
-    });
+    const reservation =
+      await prisma.reservation.findFirst({
+        where: {
+          id: reservationId,
+          customerId,
+        },
+
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
+        },
+      });
 
     if (!reservation) {
       return res.status(404).json({
         success: false,
-        message: "Reservation not found",
+        message:
+          "Reservation not found",
       });
     }
 
-    if (reservation.status !== "CONFIRMED") {
+    if (
+      reservation.status !==
+      "CONFIRMED"
+    ) {
       return res.status(400).json({
         success: false,
         message:
           "Only confirmed reservations can be cancelled",
       });
     }
+
+    // ========================================
+    // CANCEL RESERVATION
+    // ========================================
 
     const updatedReservation =
       await prisma.reservation.update({
@@ -355,54 +475,95 @@ const cancelMyReservation = async (req, res) => {
 
         include: {
           table: true,
+
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+            },
+          },
         },
       });
 
+    // ========================================
+    // SEND CANCELLATION EMAIL
+    // ========================================
+
+    try {
+      await sendReservationCancellationEmail({
+        customer:
+          updatedReservation.customer,
+
+        reservation:
+          updatedReservation,
+      });
+    } catch (emailError) {
+      console.error(
+        "Reservation cancellation email failed:",
+        emailError.message
+      );
+    }
+
     return res.status(200).json({
       success: true,
-      message: "Reservation cancelled successfully",
-      reservation: updatedReservation,
+      message:
+        "Reservation cancelled successfully",
+      reservation:
+        updatedReservation,
     });
   } catch (error) {
-    console.error("Cancel reservation error:", error);
+    console.error(
+      "Cancel reservation error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Internal server error",
     });
   }
 };
 
 // ========================================
 // GET SERVICE RESERVATIONS
-// Waiter / Manager sees active bookings
+//
+// Waiter / Manager sees active bookings.
 // ========================================
 
-const getServiceReservations = async (req, res) => {
+const getServiceReservations = async (
+  req,
+  res
+) => {
   try {
-    const reservations = await prisma.reservation.findMany({
-      where: {
-        status: {
-          in: ["CONFIRMED", "SEATED"],
-        },
-      },
-
-      include: {
-        table: true,
-
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            phone: true,
+    const reservations =
+      await prisma.reservation.findMany({
+        where: {
+          status: {
+            in: [
+              "CONFIRMED",
+              "SEATED",
+            ],
           },
         },
-      },
 
-      orderBy: {
-        startTime: "asc",
-      },
-    });
+        include: {
+          table: true,
+
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+            },
+          },
+        },
+
+        orderBy: {
+          startTime: "asc",
+        },
+      });
 
     return res.status(200).json({
       success: true,
@@ -410,50 +571,83 @@ const getServiceReservations = async (req, res) => {
       reservations,
     });
   } catch (error) {
-    console.error("Get service reservations error:", error);
+    console.error(
+      "Get service reservations error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Internal server error",
     });
   }
 };
 
 // ========================================
 // UPDATE RESERVATION STATUS
-// Waiter / Manager handles guest lifecycle
-// CONFIRMED -> SEATED -> COMPLETED
+//
+// Waiter / Manager handles:
+//
+// CONFIRMED -> SEATED
+// CONFIRMED -> CANCELLED
+// CONFIRMED -> NO_SHOW
+// SEATED    -> COMPLETED
 // ========================================
 
-const updateReservationStatus = async (req, res) => {
+const updateReservationStatus = async (
+  req,
+  res
+) => {
   try {
-    const reservationId = Number(req.params.id);
-    const { status } = req.body;
+    const reservationId =
+      Number(req.params.id);
 
-    if (!Number.isInteger(reservationId)) {
+    const { status } =
+      req.body;
+
+    if (
+      !Number.isInteger(
+        reservationId
+      )
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid reservation ID",
+        message:
+          "Invalid reservation ID",
       });
     }
 
-    const reservation = await prisma.reservation.findUnique({
-      where: {
-        id: reservationId,
-      },
-    });
+    const reservation =
+      await prisma.reservation.findUnique({
+        where: {
+          id: reservationId,
+        },
+      });
 
     if (!reservation) {
       return res.status(404).json({
         success: false,
-        message: "Reservation not found",
+        message:
+          "Reservation not found",
       });
     }
 
-    // Controlled reservation workflow
+    // ========================================
+    // CONTROLLED WORKFLOW
+    // ========================================
+
     const allowedTransitions = {
-      CONFIRMED: ["SEATED", "CANCELLED", "NO_SHOW"],
-      SEATED: ["COMPLETED"],
+      CONFIRMED: [
+        "SEATED",
+        "CANCELLED",
+        "NO_SHOW",
+      ],
+
+      SEATED: [
+        "COMPLETED",
+      ],
+
       COMPLETED: [],
       CANCELLED: [],
       NO_SHOW: [],
@@ -461,81 +655,101 @@ const updateReservationStatus = async (req, res) => {
 
     if (
       !status ||
-      !allowedTransitions[reservation.status]?.includes(
-        status
-      )
+      !allowedTransitions[
+        reservation.status
+      ]?.includes(status)
     ) {
       return res.status(400).json({
         success: false,
-        message: `Cannot change reservation from ${reservation.status} to ${status}`,
+        message:
+          `Cannot change reservation from ${reservation.status} to ${status}`,
       });
     }
 
-    // Reservation and physical table state should
-    // change together.
-    const result = await prisma.$transaction(
-      async (tx) => {
-        const updatedReservation =
-          await tx.reservation.update({
-            where: {
-              id: reservationId,
-            },
+    // ========================================
+    // RESERVATION + TABLE TRANSACTION
+    // ========================================
 
-            data: {
-              status,
-            },
+    const result =
+      await prisma.$transaction(
+        async (tx) => {
+          const updatedReservation =
+            await tx.reservation.update({
+              where: {
+                id: reservationId,
+              },
 
-            include: {
-              table: true,
-              customer: {
-                select: {
-                  id: true,
-                  name: true,
-                  phone: true,
+              data: {
+                status,
+              },
+
+              include: {
+                table: true,
+
+                customer: {
+                  select: {
+                    id: true,
+                    name: true,
+                    phone: true,
+                  },
                 },
               },
-            },
-          });
+            });
 
-        // Guest seated -> table becomes occupied
-        if (status === "SEATED") {
-          await tx.restaurantTable.update({
-            where: {
-              id: reservation.tableId,
-            },
-            data: {
-              status: "OCCUPIED",
-            },
-          });
+          // Guest seated
+          if (
+            status === "SEATED"
+          ) {
+            await tx.restaurantTable.update({
+              where: {
+                id:
+                  reservation.tableId,
+              },
+
+              data: {
+                status:
+                  "OCCUPIED",
+              },
+            });
+          }
+
+          // Reservation completed
+          if (
+            status === "COMPLETED"
+          ) {
+            await tx.restaurantTable.update({
+              where: {
+                id:
+                  reservation.tableId,
+              },
+
+              data: {
+                status:
+                  "CLEANING",
+              },
+            });
+          }
+
+          return updatedReservation;
         }
-
-        // Reservation completed -> table needs cleaning
-        if (status === "COMPLETED") {
-          await tx.restaurantTable.update({
-            where: {
-              id: reservation.tableId,
-            },
-            data: {
-              status: "CLEANING",
-            },
-          });
-        }
-
-        return updatedReservation;
-      }
-    );
+      );
 
     return res.status(200).json({
       success: true,
-      message: `Reservation status updated to ${status}`,
+      message:
+        `Reservation status updated to ${status}`,
       reservation: result,
     });
   } catch (error) {
-    console.error("Update reservation status error:", error);
+    console.error(
+      "Update reservation status error:",
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Internal server error",
     });
   }
 };
