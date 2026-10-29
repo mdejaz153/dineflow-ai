@@ -5,7 +5,7 @@ function DemandForecast({
   allowReorder = false,
 }) {
   // ========================================
-  // STATE
+  // STATE - FORECAST
   // ========================================
 
   const [methodology, setMethodology] =
@@ -26,8 +26,21 @@ function DemandForecast({
   const [error, setError] =
     useState("");
 
-  // Stores ID of item whose reorder request
-  // is currently being created.
+  // ========================================
+  // STATE - PROCUREMENT AWARENESS
+  //
+  // Contains only active procurement:
+  // - PENDING
+  // - APPROVED
+  //
+  // RECEIVED / REJECTED requests are no
+  // longer considered active.
+  // ========================================
+
+  const [activeReorders, setActiveReorders] =
+    useState([]);
+
+  // Inventory item currently creating reorder
   const [
     creatingReorderFor,
     setCreatingReorderFor,
@@ -76,34 +89,93 @@ function DemandForecast({
   };
 
   // ========================================
+  // FETCH ACTIVE PROCUREMENT REQUESTS
+  //
+  // Only Inventory Staff calls this endpoint.
+  //
+  // Manager can view forecast but cannot
+  // create procurement requests here.
+  // ========================================
+
+  const fetchActiveReorders = async () => {
+    if (!allowReorder) {
+      return;
+    }
+
+    try {
+      const response = await api.get(
+        "/reorders/my-requests"
+      );
+
+      const active =
+        response.data.reorderRequests.filter(
+          (request) =>
+            request.status === "PENDING" ||
+            request.status === "APPROVED"
+        );
+
+      setActiveReorders(active);
+    } catch (error) {
+      console.error(
+        "Active reorder fetch error:",
+        error
+      );
+    }
+  };
+
+  // ========================================
   // AUTO-SYNC
   //
-  // Consumption, stock deliveries and other
-  // inventory changes automatically cause
-  // forecast values to refresh.
+  // Every 5 seconds:
+  // - Forecast recalculates
+  // - Procurement status refreshes
+  //
+  // This means Manager approval / delivery
+  // appears without manual page refresh.
   // ========================================
 
   useEffect(() => {
     fetchForecast();
 
+    if (allowReorder) {
+      fetchActiveReorders();
+    }
+
     const interval = setInterval(() => {
       fetchForecast();
+
+      if (allowReorder) {
+        fetchActiveReorders();
+      }
     }, 5000);
 
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [allowReorder]);
+
+  // ========================================
+  // FIND ACTIVE REORDER FOR INGREDIENT
+  // ========================================
+
+  const getActiveReorder = (
+    inventoryItemId
+  ) => {
+    return activeReorders.find(
+      (request) =>
+        request.inventoryItemId ===
+        inventoryItemId
+    );
+  };
 
   // ========================================
   // CREATE FORECAST-BASED REORDER
   //
-  // Uses the quantity calculated by the
-  // forecasting engine.
+  // Quantity comes directly from forecasting
+  // engine's recommended reorder amount.
   //
-  // Existing backend duplicate protection
-  // prevents multiple active requests for
-  // the same inventory item.
+  // Backend still provides duplicate
+  // protection as a second safety layer.
   // ========================================
 
   const handleCreateForecastReorder =
@@ -114,6 +186,20 @@ function DemandForecast({
       ) {
         alert(
           "No reorder is currently recommended for this item"
+        );
+
+        return;
+      }
+
+      // Frontend duplicate protection
+      const existingActiveRequest =
+        getActiveReorder(
+          forecast.inventoryItemId
+        );
+
+      if (existingActiveRequest) {
+        alert(
+          "An active reorder request already exists for this inventory item"
         );
 
         return;
@@ -139,6 +225,10 @@ function DemandForecast({
         );
 
         alert(response.data.message);
+
+        // Immediately update procurement status.
+        // No need to wait for next 5-sec poll.
+        await fetchActiveReorders();
       } catch (error) {
         console.error(
           "Forecast reorder error:",
@@ -211,8 +301,8 @@ function DemandForecast({
       </h2>
 
       <p>
-        Consumption-based inventory
-        planning for upcoming demand.
+        Consumption-based inventory planning
+        for upcoming demand.
       </p>
 
       {loading && (
@@ -352,7 +442,7 @@ function DemandForecast({
             <hr />
 
             {/* =================================
-                ITEM FORECASTS
+                INGREDIENT FORECAST
             ================================= */}
 
             <h3>
@@ -402,118 +492,139 @@ function DemandForecast({
                   </th>
 
                   <th>
-                    Action
+                    Procurement Status
                   </th>
                 </tr>
               </thead>
 
               <tbody>
                 {forecasts.map(
-                  (forecast) => (
-                    <tr
-                      key={
+                  (forecast) => {
+                    const activeReorder =
+                      getActiveReorder(
                         forecast.inventoryItemId
-                      }
-                    >
-                      <td>
-                        {
-                          forecast.name
+                      );
+
+                    return (
+                      <tr
+                        key={
+                          forecast.inventoryItemId
                         }
-                      </td>
+                      >
+                        <td>
+                          {forecast.name}
+                        </td>
 
-                      <td>
-                        {Number(
-                          forecast.currentStock
-                        ).toFixed(3)}
-                        {" "}
-                        {forecast.unit}
-                      </td>
-
-                      <td>
-                        {Number(
-                          forecast.averageDailyConsumption
-                        ).toFixed(3)}
-                        {" "}
-                        {forecast.unit}
-                        /day
-                      </td>
-
-                      <td>
-                        {Number(
-                          forecast.forecastDemand
-                        ).toFixed(3)}
-                        {" "}
-                        {forecast.unit}
-                      </td>
-
-                      <td>
-                        {Number(
-                          forecast.projectedStockAfterForecast
-                        ).toFixed(3)}
-                        {" "}
-                        {forecast.unit}
-                      </td>
-
-                      <td>
-                        {Number(
-                          forecast.safetyStock
-                        ).toFixed(3)}
-                        {" "}
-                        {forecast.unit}
-                      </td>
-
-                      <td>
-                        {Number(
-                          forecast.expectedShortage
-                        ).toFixed(3)}
-                        {" "}
-                        {forecast.unit}
-                      </td>
-
-                      <td>
-                        <strong>
+                        <td>
                           {Number(
-                            forecast.recommendedReorder
+                            forecast.currentStock
                           ).toFixed(3)}
                           {" "}
                           {forecast.unit}
-                        </strong>
-                      </td>
+                        </td>
 
-                      <td>
-                        <strong>
-                          {getRiskLabel(
-                            forecast.riskLevel
-                          )}
-                        </strong>
-                      </td>
+                        <td>
+                          {Number(
+                            forecast.averageDailyConsumption
+                          ).toFixed(3)}
+                          {" "}
+                          {forecast.unit}
+                          /day
+                        </td>
 
-                      <td>
-                        {allowReorder &&
-                        forecast.recommendedReorder > 0 ? (
-                          <button
-                            type="button"
-                            disabled={
-                              creatingReorderFor ===
+                        <td>
+                          {Number(
+                            forecast.forecastDemand
+                          ).toFixed(3)}
+                          {" "}
+                          {forecast.unit}
+                        </td>
+
+                        <td>
+                          {Number(
+                            forecast.projectedStockAfterForecast
+                          ).toFixed(3)}
+                          {" "}
+                          {forecast.unit}
+                        </td>
+
+                        <td>
+                          {Number(
+                            forecast.safetyStock
+                          ).toFixed(3)}
+                          {" "}
+                          {forecast.unit}
+                        </td>
+
+                        <td>
+                          {Number(
+                            forecast.expectedShortage
+                          ).toFixed(3)}
+                          {" "}
+                          {forecast.unit}
+                        </td>
+
+                        <td>
+                          <strong>
+                            {Number(
+                              forecast.recommendedReorder
+                            ).toFixed(3)}
+                            {" "}
+                            {forecast.unit}
+                          </strong>
+                        </td>
+
+                        <td>
+                          <strong>
+                            {getRiskLabel(
+                              forecast.riskLevel
+                            )}
+                          </strong>
+                        </td>
+
+                        <td>
+                          {/* Manager view */}
+                          {!allowReorder ? (
+                            "-"
+                          ) : activeReorder
+                              ?.status ===
+                            "PENDING" ? (
+                            <strong>
+                              ⏳ Reorder Pending
+                            </strong>
+                          ) : activeReorder
+                              ?.status ===
+                            "APPROVED" ? (
+                            <strong>
+                              ✅ Approved —
+                              Awaiting Delivery
+                            </strong>
+                          ) : forecast.recommendedReorder >
+                            0 ? (
+                            <button
+                              type="button"
+                              disabled={
+                                creatingReorderFor ===
+                                forecast.inventoryItemId
+                              }
+                              onClick={() =>
+                                handleCreateForecastReorder(
+                                  forecast
+                                )
+                              }
+                            >
+                              {creatingReorderFor ===
                               forecast.inventoryItemId
-                            }
-                            onClick={() =>
-                              handleCreateForecastReorder(
-                                forecast
-                              )
-                            }
-                          >
-                            {creatingReorderFor ===
-                            forecast.inventoryItemId
-                              ? "Creating..."
-                              : "Create Forecast Reorder"}
-                          </button>
-                        ) : (
-                          "-"
-                        )}
-                      </td>
-                    </tr>
-                  )
+                                ? "Creating..."
+                                : "Create Forecast Reorder"}
+                            </button>
+                          ) : (
+                            "-"
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  }
                 )}
               </tbody>
             </table>
@@ -524,8 +635,8 @@ function DemandForecast({
               <small>
                 Forecasts are based on
                 available recent consumption
-                history. Accuracy improves
-                as more operational data is
+                history. Accuracy improves as
+                more operational data is
                 collected.
               </small>
             </p>
