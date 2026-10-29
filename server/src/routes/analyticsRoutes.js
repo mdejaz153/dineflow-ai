@@ -11,6 +11,7 @@ const {
 const {
   getWasteAnalytics,
   getConsumptionAnalytics,
+  getOperationsAnalytics,
 } = require(
   "../controllers/analyticsController"
 );
@@ -54,6 +55,19 @@ router.get(
     "INVENTORY_STAFF"
   ),
   getConsumptionAnalytics
+);
+
+// ========================================
+// MANAGER OPERATIONS ANALYTICS
+//
+// Manager-only consolidated dashboard.
+// ========================================
+
+router.get(
+  "/operations",
+  protect,
+  authorizeRoles("MANAGER"),
+  getOperationsAnalytics
 );
 
 module.exports = router;

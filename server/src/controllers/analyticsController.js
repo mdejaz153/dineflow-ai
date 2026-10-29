@@ -741,7 +741,468 @@ const getConsumptionAnalytics = async (
     });
   }
 };
+// ========================================
+// GET MANAGER OPERATIONS ANALYTICS
+//
+// Provides a consolidated restaurant
+// operations overview for the Manager.
+//
+// Includes:
+// - Order lifecycle
+// - Revenue
+// - Popular menu items
+// - Reservations
+// - Inventory health
+// - Procurement status
+// ========================================
+
+const getOperationsAnalytics = async (
+  req,
+  res
+) => {
+  try {
+    // ========================================
+    // FETCH CORE OPERATIONAL DATA
+    // ========================================
+
+    const [
+      orders,
+      reservations,
+      inventoryItems,
+      reorderRequests,
+    ] = await Promise.all([
+      // Orders + dishes
+      prisma.order.findMany({
+        include: {
+          items: {
+            include: {
+              menuItem: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+
+      // Reservations
+      prisma.reservation.findMany(),
+
+      // Inventory
+      prisma.inventoryItem.findMany(),
+
+      // Procurement
+      prisma.reorderRequest.findMany(),
+    ]);
+
+    // ========================================
+    // ORDER SUMMARY
+    // ========================================
+
+    const orderSummary = {
+      total: orders.length,
+
+      pending: 0,
+      accepted: 0,
+      preparing: 0,
+      ready: 0,
+      served: 0,
+      cancelled: 0,
+
+      // Revenue from non-cancelled orders
+      totalRevenue: 0,
+
+      // Revenue actually completed/served
+      servedRevenue: 0,
+    };
+
+    for (const order of orders) {
+      const status =
+        order.status.toLowerCase();
+
+      if (
+        Object.prototype.hasOwnProperty.call(
+          orderSummary,
+          status
+        )
+      ) {
+        orderSummary[status] += 1;
+      }
+
+      const total =
+        Number(order.total);
+
+      if (
+        order.status !== "CANCELLED"
+      ) {
+        orderSummary.totalRevenue +=
+          total;
+      }
+
+      if (
+        order.status === "SERVED"
+      ) {
+        orderSummary.servedRevenue +=
+          total;
+      }
+    }
+
+    orderSummary.totalRevenue =
+      Number(
+        orderSummary.totalRevenue.toFixed(
+          2
+        )
+      );
+
+    orderSummary.servedRevenue =
+      Number(
+        orderSummary.servedRevenue.toFixed(
+          2
+        )
+      );
+
+    // ========================================
+    // MENU PERFORMANCE
+    //
+    // Cancelled orders are excluded.
+    // ========================================
+
+    const menuPerformanceMap =
+      new Map();
+
+    for (const order of orders) {
+      if (
+        order.status === "CANCELLED"
+      ) {
+        continue;
+      }
+
+      for (const item of order.items) {
+        const menuItemId =
+          item.menuItemId;
+
+        if (
+          !menuPerformanceMap.has(
+            menuItemId
+          )
+        ) {
+          menuPerformanceMap.set(
+            menuItemId,
+            {
+              menuItemId,
+              name:
+                item.menuItem.name,
+
+              unitsSold: 0,
+              orderAppearances: 0,
+              revenue: 0,
+            }
+          );
+        }
+
+        const performance =
+          menuPerformanceMap.get(
+            menuItemId
+          );
+
+        performance.unitsSold +=
+          item.quantity;
+
+        performance.orderAppearances +=
+          1;
+
+        performance.revenue +=
+          Number(item.unitPrice) *
+          item.quantity;
+      }
+    }
+
+    const menuPerformance =
+      Array.from(
+        menuPerformanceMap.values()
+      )
+        .map((item) => ({
+          ...item,
+
+          revenue: Number(
+            item.revenue.toFixed(2)
+          ),
+        }))
+        .sort(
+          (a, b) =>
+            b.unitsSold -
+              a.unitsSold ||
+            b.revenue -
+              a.revenue
+        );
+
+    const mostOrderedDish =
+      menuPerformance.length > 0
+        ? menuPerformance[0]
+        : null;
+
+    // ========================================
+    // RESERVATION SUMMARY
+    // ========================================
+
+    const reservationSummary = {
+      total:
+        reservations.length,
+
+      confirmed: 0,
+      seated: 0,
+      completed: 0,
+      cancelled: 0,
+      noShow: 0,
+    };
+
+    for (
+      const reservation of
+      reservations
+    ) {
+      switch (
+        reservation.status
+      ) {
+        case "CONFIRMED":
+          reservationSummary.confirmed +=
+            1;
+          break;
+
+        case "SEATED":
+          reservationSummary.seated +=
+            1;
+          break;
+
+        case "COMPLETED":
+          reservationSummary.completed +=
+            1;
+          break;
+
+        case "CANCELLED":
+          reservationSummary.cancelled +=
+            1;
+          break;
+
+        case "NO_SHOW":
+          reservationSummary.noShow +=
+            1;
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    // ========================================
+    // INVENTORY SUMMARY
+    // ========================================
+
+    const inventorySummary = {
+      totalItems:
+        inventoryItems.length,
+
+      healthyItems: 0,
+      lowStockItems: 0,
+      outOfStockItems: 0,
+    };
+
+    for (
+      const item of inventoryItems
+    ) {
+      const currentStock =
+        Number(item.currentStock);
+
+      const minimumStock =
+        Number(item.minimumStock);
+
+      if (currentStock <= 0) {
+        inventorySummary.outOfStockItems +=
+          1;
+      } else if (
+        currentStock <=
+        minimumStock
+      ) {
+        inventorySummary.lowStockItems +=
+          1;
+      } else {
+        inventorySummary.healthyItems +=
+          1;
+      }
+    }
+
+    // ========================================
+    // PROCUREMENT SUMMARY
+    // ========================================
+
+    const procurementSummary = {
+      totalRequests:
+        reorderRequests.length,
+
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      received: 0,
+
+      activeRequests: 0,
+    };
+
+    for (
+      const request of
+      reorderRequests
+    ) {
+      switch (request.status) {
+        case "PENDING":
+          procurementSummary.pending +=
+            1;
+
+          procurementSummary.activeRequests +=
+            1;
+          break;
+
+        case "APPROVED":
+          procurementSummary.approved +=
+            1;
+
+          procurementSummary.activeRequests +=
+            1;
+          break;
+
+        case "REJECTED":
+          procurementSummary.rejected +=
+            1;
+          break;
+
+        case "RECEIVED":
+          procurementSummary.received +=
+            1;
+          break;
+
+        default:
+          break;
+      }
+    }
+
+    // ========================================
+    // OPERATIONAL ATTENTION ITEMS
+    // ========================================
+
+    const attention = [];
+
+    if (
+      inventorySummary.outOfStockItems >
+      0
+    ) {
+      attention.push({
+        level: "HIGH",
+
+        type: "INVENTORY",
+
+        message:
+          `${inventorySummary.outOfStockItems} inventory item(s) are out of stock.`,
+      });
+    }
+
+    if (
+      inventorySummary.lowStockItems >
+      0
+    ) {
+      attention.push({
+        level: "MEDIUM",
+
+        type: "INVENTORY",
+
+        message:
+          `${inventorySummary.lowStockItems} inventory item(s) are at or below minimum stock.`,
+      });
+    }
+
+    if (
+      procurementSummary.pending > 0
+    ) {
+      attention.push({
+        level: "MEDIUM",
+
+        type: "PROCUREMENT",
+
+        message:
+          `${procurementSummary.pending} procurement request(s) are waiting for Manager review.`,
+      });
+    }
+
+    if (
+      orderSummary.ready > 0
+    ) {
+      attention.push({
+        level: "MEDIUM",
+
+        type: "SERVICE",
+
+        message:
+          `${orderSummary.ready} order(s) are ready and waiting to be served.`,
+      });
+    }
+
+    if (
+      orderSummary.pending > 0
+    ) {
+      attention.push({
+        level: "LOW",
+
+        type: "KITCHEN",
+
+        message:
+          `${orderSummary.pending} order(s) are waiting for kitchen acceptance.`,
+      });
+    }
+
+    // ========================================
+    // RESPONSE
+    // ========================================
+
+    return res.status(200).json({
+      success: true,
+
+      generatedAt:
+        new Date(),
+
+      orders: orderSummary,
+
+      menu: {
+        mostOrderedDish,
+        performance:
+          menuPerformance,
+      },
+
+      reservations:
+        reservationSummary,
+
+      inventory:
+        inventorySummary,
+
+      procurement:
+        procurementSummary,
+
+      attention,
+    });
+  } catch (error) {
+    console.error(
+      "Operations analytics error:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+
+      message:
+        "Failed to generate operations analytics",
+    });
+  }
+};
+
 module.exports = {
   getWasteAnalytics,
   getConsumptionAnalytics,
+  getOperationsAnalytics,
 };

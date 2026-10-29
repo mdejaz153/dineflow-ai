@@ -9,7 +9,7 @@ import WasteAnalytics from "../../components/inventory/WasteAnalytics";
 import RecipeManagement from "../../components/admin/RecipeManagement";
 import ConsumptionAnalytics from "../../components/inventory/ConsumptionAnalytics";
 import DemandForecast from "../../components/inventory/DemandForecast";
-
+import OperationsAnalytics from "../../components/admin/OperationsAnalytics";
 
 
 function AdminDashboard() {
@@ -26,6 +26,12 @@ function AdminDashboard() {
       </p>
 
       <LogoutButton />
+
+      {/* =====================================
+          MANAGER OPERATIONS ANALYTICS
+      ====================================== */}
+      
+      <OperationsAnalytics />
 
       {/* =====================================
           MENU MANAGEMENT
